@@ -5,10 +5,6 @@ str(train)
 summary(train)
 summary(test)
 
-
-table(train$Survived)
-prop.table(table(train$Survived))
-
 measurePrecisionRecall <- function(predict, target_data){
   precision <- sum(predict & target_data) / sum(predict)
   recall <- sum(predict & target_data) / sum(target_data)
@@ -38,16 +34,16 @@ library(RColorBrewer)
 library(SDMTools)
 library(ROCR)
 library(randomForest)
-
+library(e1071)
 
 fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked,
              data=train,
              method="class")
 
 fancyRpartPlot(fit)
-prediction<- predict(fit, test, type = "class")
-confusion.matrix(prediction, target[[2]])
-measurePrecisionRecall(as.numeric(as.character(prediction)), target[[2]])
+prediction_decision.tree<- predict(fit, test, type = "class")
+confusion.matrix(prediction_decision.tree, target[[2]])
+measurePrecisionRecall(as.numeric(as.character(prediction_decision.tree)), target[[2]])
 
 
 
@@ -96,7 +92,7 @@ pred3<-predict(fit3, test2)
 confusion.matrix(pred3, target[[2]])
 measurePrecisionRecall(as.numeric(as.character(pred2)), target[[2]])
 
-library(e1071)
+
 
 combined_data$Sex_dummy <- ifelse (combined_data$Sex == "female", 1, 2)
 combined_data$Embarked_dummy <- ifelse(combined_data$Embarked == "C",1, ifelse(combined_data$Embarked == "Q", 2, 3))
