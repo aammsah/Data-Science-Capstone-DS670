@@ -2,12 +2,16 @@ train <- read.csv('train.csv', header = T)
 test <- read.csv('test.csv', header = TRUE)
 target<- read.csv('gender_submission.csv', header = TRUE)
 str(train)
+summary(train)
+summary(test)
+
+
 table(train$Survived)
 prop.table(table(train$Survived))
 
-measurePrecisionRecall <- function(predict, actual_labels){
-  precision <- sum(predict & actual_labels) / sum(predict)
-  recall <- sum(predict & actual_labels) / sum(actual_labels)
+measurePrecisionRecall <- function(predict, target_data){
+  precision <- sum(predict & target_data) / sum(predict)
+  recall <- sum(predict & target_data) / sum(target_data)
   fmeasure <- 2 * precision * recall / (precision + recall)
   
   cat('precision:  ')
@@ -26,47 +30,83 @@ measurePrecisionRecall <- function(predict, actual_labels){
   cat('\n')
 }
 
-install.packages('rattle')
-install.packages('rpart.plot')
-install.packages('RColorBrewer')
+
 library(rpart)
 library(rattle)
 library(rpart.plot)
 library(RColorBrewer)
 library(SDMTools)
 library(ROCR)
+library(randomForest)
 
 
 fit <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked,
              data=train,
              method="class")
-plot(fit)
-text(fit)
-
-
-
 
 fancyRpartPlot(fit)
-
 prediction<- predict(fit, test, type = "class")
-
-
 confusion.matrix(prediction, target[[2]])
-
-
 measurePrecisionRecall(as.numeric(as.character(prediction)), target[[2]])
 
-library(randomForest)
-set.seed(419)
-fit2<- randomForest(as.factor(Survived) ~ Pclass +Sex + SibSp + Parch + Embarked ,
-                    data = train, importance = TRUE, ntree = 2000)
-varImpPlot(fit2)
-test2<- cbind.data.frame(test$Pclass, test$Sex, test$SibSp, test$Parch,  test$Embarked)
-names(test2)<-c('Pclass', 'Sex', 'SibSp', 'Parch','Embarked')
-levels(test2$Embarked)<- levels(train$Embarked)
-pred2<-predict(fit2, test2)
-confusion.matrix(pred2, target[[2]])
+
+
+
+test$Survived <- NA
+combined_data <- rbind(train,test)
+str(combined_data)
+summary(combined_data)
+
+combined_data$Name <- as.character(combined_data$Name)
+
+Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare + Embarked,
+                data=combined_data[!is.na(combined_data$Age),], 
+                method="anova")
+combined_data$Age[is.na(combined_data$Age)] <- predict(Agefit, combined_data[is.na(combined_data$Age),])
+
+summary(combined_data)
+summary(combined_data$Embarked)
+which(combined_data$Embarked=='')
+combined_data$Embarked[c(62,830)]= "S"
+combined_data$Embarked <- factor(combined_data$Embarked)
+summary(combined_data$Embarked)
+
+summary(combined_data$Fare)
+which(is.na(combined_data$Fare))
+combined_data$Fare[1044]<-median(combined_data$Fare, na.rm = T)
+summary(combined_data)
+
+train2 <- combined_data[1:891,]
+test2 <- combined_data[892:1309,]
+
+fit2 <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Fare + Embarked,
+             data=train2,
+             method="class")
+fancyRpartPlot(fit)
+prediction<- predict(fit, test2, type = "class")
+confusion.matrix(prediction, target[[2]])
+measurePrecisionRecall(as.numeric(as.character(prediction)), target[[2]])
+
+
+set.seed(455)
+fit3 <- randomForest(as.factor(Survived) ~ Pclass +Sex + SibSp + Parch + Embarked + Age +Fare,
+                    data = train2, importance = TRUE, ntree = 10000)
+varImpPlot(fit3)
+pred3<-predict(fit3, test2)
+confusion.matrix(pred3, target[[2]])
 measurePrecisionRecall(as.numeric(as.character(pred2)), target[[2]])
 
-sum(is.na(test2$Fare))
-test2
+library(e1071)
+
+combined_data$Sex_dummy <- ifelse (combined_data$Sex == "female", 1, 2)
+combined_data$Embarked_dummy <- ifelse(combined_data$Embarked == "C",1, ifelse(combined_data$Embarked == "Q", 2, 3))
+train2 <- combined_data[1:891,]
+test2 <- combined_data[892:1309,]
+y_train <- as.factor(train2[,2])
+x <- train2[,c(-1,-2,-4,-5, -9,-11, -12)]
+
+fit4<- svm(x,y,cost = 100, gamma =1)
+pred4 <- predict(fit4,test2[,c(-1,-2,-4,-5, -9,-11, -12)])
+summary(pred4)
+confusion.matrix(pred4, target[[2]])
+measurePrecisionRecall(as.numeric(as.character(pred4)), target[[2]])
