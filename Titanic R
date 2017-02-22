@@ -4,8 +4,8 @@ author: "Kapil Bastola"
 date: "2/18/2017"
 output: pdf_document
 ---
-
-```{r setup, include=FALSE}
+  
+  ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -14,8 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r}
+  
+  ```{r}
 train <- read.csv('~/Downloads/train (2).csv', header = T)
 test <- read.csv('~/Downloads/test (2).csv', header = TRUE)
 target<- read.csv('~/Downloads/gender_submission.csv', header = TRUE)
@@ -23,6 +23,14 @@ str(train)
 summary(train)
 summary(test)
 summary(target)
+
+
+table(train$Survived)
+table(train$Sex)
+prop.table(table(train$Sex, train$Survived),1)
+table(train$Pclass)
+prop.table(table(train$Pclass, train$Survived),1)
+hist(train$Age)
 ```
 
 
@@ -35,6 +43,7 @@ library(SDMTools)
 library(ROCR)
 library(randomForest)
 library(e1071)
+library(caret)
 ```
 
 ##Decision Trees
@@ -82,6 +91,8 @@ test$Survived <- NA
 combined_data <- rbind(train,test)
 str(combined_data)
 
+
+
 Agefit <- rpart(Age ~ Pclass + Sex + SibSp + Parch + Fare + Embarked,
                 data=combined_data[!is.na(combined_data$Age),], 
                 method="anova")
@@ -113,6 +124,12 @@ fancyRpartPlot(fit)
 pred2<- predict(fit, test2, type = "class")
 confusion.matrix(pred2, target[[2]])
 measurePrecisionRecall(as.numeric(as.character(pred2)), target[[2]])
+
+pred_dt <- ROCR::prediction(as.numeric(as.character(pred2)), target[[2]])
+ROC1 <- performance(pred_dt, measure = "tpr", x.measure = "fpr")
+plot(ROC1, col = "orange", lwd = 2)
+auc1 <- slot(performance(pred_dt, "auc"), 'y.values')
+auc1
 ```
 ##Random Forest
 ```{r}
@@ -125,6 +142,12 @@ varImpPlot(fit3)
 pred3<-predict(fit3, test2)
 confusion.matrix(pred3, target[[2]])
 measurePrecisionRecall(as.numeric(as.character(pred3)), target[[2]])
+
+pred_RF <- ROCR::prediction(as.numeric(as.character(pred3)), target[[2]])
+ROC2 <- performance(pred_RF, measure = "tpr", x.measure = "fpr")
+plot(ROC2, col = "red", lwd = 2)
+auc2 <- slot(performance(pred_RF, "auc"), 'y.values')
+auc2
 ```
 ##Support Vector Machines
 
@@ -145,42 +168,66 @@ summary(pred4)
 confusion.matrix(pred4, target[[2]])
 measurePrecisionRecall(as.numeric(as.character(pred4)), target[[2]])
 
+pred_SVM <- ROCR::prediction(as.numeric(as.character(pred4)), target[[2]])
+ROC3 <- performance(pred_SVM, measure = "tpr", x.measure = "fpr")
+plot(ROC3, col = "blue", lwd = 2)
+auc3 <- slot(performance(pred_SVM, "auc"), 'y.values')
+auc3
 ```
 
 
 ```{r}
-library(neuralnet)
-library(caret)
 
 
-nn<-neuralnet(Survived~Pclass +Sex_dummy + SibSp + Parch + Embarked_dummy + Age +Fare, data=train2, hidden =2, linear.output=T)
-summary(nn)
-plot(nn)
 
-pred5 <- compute(nn, test2[,c(-1,-2,-4,-5, -9,-11, -12)])
-pred5$net.result <- ifelse(pred5$net.result > 0.5, 1, 0)
-confusion.matrix(pred5[[2]], target[[2]])
-measurePrecisionRecall(as.numeric(as.character(pred5$net.result)), target[[2]])
+nnet <- train(Survived~Pclass +Sex_dummy + SibSp + Parch + 
+                Embarked_dummy + Age +Fare, data = train2, 
+              method = 'nnet', linout = TRUE, trace = FALSE)
+pred5<- predict(nnet, test2[,c(-1,-2,-4,-5, -9,-11, -12)])
+pred5 <- ifelse(pred5 > 0.5, 1, 0)
+confusion.matrix(pred5, target[[2]])
+measurePrecisionRecall(as.numeric(as.character(pred5)), target[[2]])
+
+pred_NN <- ROCR::prediction(as.numeric(as.character(pred5)), target[[2]])
+ROC4 <- performance(pred_NN, measure = "tpr", x.measure = "fpr")
+plot(ROC4, col = "green", lwd = 2)
+auc4 <- slot(performance(pred_NN, "auc"), 'y.values')
+auc4
+
+```
+```{r}
+logit_reg <- glm(Survived ~ Pclass + Sex + Age + SibSp + Pclass:Sex, family = binomial, data = train2)
+summary(logit_reg)
+pred6 <- predict(logit_reg, test2, type = "response")
+head(pred6)
+pred6 <- ifelse(pred6 > 0.5, 1, 0)
+confusion.matrix(pred6, target[[2]])
+measurePrecisionRecall(as.numeric(as.character(pred6)), target[[2]])
+
+pred_LR <- ROCR::prediction(as.numeric(as.character(pred6)), target[[2]])
+ROC5 <- performance(pred_LR, measure = "tpr", x.measure = "fpr")
+plot(ROC5, col = "brown", lwd = 2)
+auc5 <- slot(performance(pred_LR, "auc"), 'y.values')
+auc5
 
 ```
 
 ##Evaluation
 
 ```{r}
-DT.Eval <- c("DT", 95.38,81.58, 87.94)
-RF.Eval <- c("RF", 87.31, 76.97, 81.82)
-SVM.Eval <- c("SVM", 80.43, 73.03, 76.55)
-df.Eval <- rbind.data.frame(DT.Eval, RF.Eval, SVM.Eval)
-names(df.Eval) <- c("Method","Precision", "Recall", "f-measure")
+DT.Eval <- c("DT",95.38,81.58,87.94,85.15)
+RF.Eval <- c("RF",87.31, 76.97,81.82, 85.15 )
+SVM.Eval <- c("SVM",80.43,73.03, 76.55, 81.44 )
+NN.Eval <- c("ANN",91.55,92.76,92.15,93.94)
+LR.Eval <- c("LR",96.32,86.18,90.97,92.15)
+df.Eval <- rbind.data.frame(DT.Eval, RF.Eval, SVM.Eval, NN.Eval, LR.Eval)
+names(df.Eval) <- c("Method","Precision", "Recall", "f-measure", "auc")
 df.Eval
 ```
-We see that Decision Trees wins in all three performance measures.
+We see that Neural networks has the best performance in all metrics except precision.
 
 ##Prediction
 ```{r}
-pred2.df<- data.frame(pred2)
-write.csv(pred2.df, file = "predicted_output")
+pred5.df<- data.frame(pred5)
+write.csv(pred5.df, file = "predicted_output")
 ```
-
-
-
