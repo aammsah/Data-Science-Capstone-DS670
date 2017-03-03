@@ -1,0 +1,29 @@
+
+traffic_data <- read.csv('trafficData158324.csv')
+
+head(traffic_data)
+traffic_data$hour<- as.factor(substr(traffic_data$TIMESTAMP, 12, 13))
+
+traffic_data$TIMESTAMP <- gsub("T", " ", traffic_data$TIMESTAMP)
+traffic_data$TIMESTAMP <- strptime(traffic_data$TIMESTAMP,"%Y-%m-%d %H:%M")
+
+head(traffic_data)
+
+library(ggplot2)
+library(scales)
+ggplot(traffic_data, aes(vehicleCount, avgSpeed))+geom_point(colour = "brown",shape = 1) + geom_smooth(,method = lm, se= F) +
+  xlab("Vehicle Count") + ylab("Average Speed")
+
+  
+
+speed_per_hour <- aggregate(traffic_data$avgSpeed, by = list(traffic_data$hour), FUN = mean)
+colnames(speed_per_hour) <- c("Hour", "Average_Speed")
+
+ggplot(speed_per_hour, aes(Hour, Average_Speed, fill = Average_Speed))+ geom_bar(colour = "grey",stat = "identity")+ xlab("Hour") + ylab("Average Speed")
+
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+traffic_fit <- rpart(avgSpeed ~ vehicleCount + hour, data = traffic_data)
+fancyRpartPlot(traffic_fit)
